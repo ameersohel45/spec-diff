@@ -494,3 +494,203 @@ message:
 | `offerAttributes` | `Attributes/v2.0` | Unchanged — stays v2.0 open JSON-LD wrapper |
 | `constraints` | `Constraint/v2.0` | **New** — same as item.constraints |
 | `policies` | `Policy/v2.0` | **New** — same as item.policies |
+
+---
+
+## Level 6: Remaining sub-objects
+
+### Level 6.1: `descriptor.docs[]` — Document object *(new in v2.0)*
+
+> Not present in old spec — `schema:image` array was the only media field. Entirely new.
+
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `label` | `string` | ✅ required | Display name of the document |
+| `url` | `string (URI)` | ✅ required | Document location |
+| `mimeType` | `string` | ✅ required | e.g. `application/pdf`, `image/png` |
+| `standard` | `string` | ✗ optional | Schema classification e.g. `verifiableCredential` |
+| `security.checksum` | `string` | ✗ optional | Hash value |
+| `security.checksumAlgorithm` | `enum: SHA256, SHA512, OTHER` | ✗ optional | Hash algorithm |
+| `security.signature` | `string` | ✗ optional | Digital signature |
+| `security.signatureAlgorithm` | `string` | ✗ optional | e.g. `Ed25519`, `ES256` |
+| `security.keyId` | `string` | ✗ optional | Key identifier |
+| `additionalProperties` | `false` | — | Strict |
+
+---
+
+### Level 6.2: `descriptor.mediaFile[]` — MediaFile object *(new in v2.0)*
+
+> Not present in old spec — `schema:image` array was the only media field. Entirely new.
+
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `label` | `string` | ✗ optional | Display name |
+| `mimeType` | `string (URI)` | ✗ optional | MIME type when `data` is provided |
+| `uri` | `string (URI)` | ✗ optional | URL to the media file |
+| `additionalProperties` | `false` | — | Strict |
+
+> **Note:** No required fields — all optional. Used for images, audio, video for display purposes.
+
+---
+
+### Level 6.3: `provider.alerts[]` — Alert object *(new in v2.0)*
+
+> Not present in old spec. Entirely new — used to notify about issues affecting provider entities.
+
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `@context` | `string (URI)`, const `"https://schema.beckn.io/"` | ✅ required | JSON-LD context |
+| `@type` | `string`, const `"Alert"` | ✅ required | Type identifier |
+| `id` | `string` | ✅ required | Unique alert identifier |
+| `descriptor` | `Descriptor/v2.1` | ✅ required | Human-readable alert description |
+| `affectedEntities` | `array[string]` | ✗ optional | IDs of affected entities (route/order/fulfillment etc.) |
+| `severity` | `string` | ✗ optional | Alert severity level |
+| `validity` | `TimePeriod/v2.1` | ✗ optional | When the alert is active |
+| `additionalProperties` | `false` | — | Strict |
+
+---
+
+### Level 6.4: `location.geo` — GeoJSONGeometry object
+
+| Aspect | Old spec | New spec (v2.0) | Change |
+|---|---|---|---|
+| Supported types | `Point, LineString, Polygon, MultiPoint, MultiLineString, MultiPolygon, GeometryCollection` | Same | No change |
+| `type` | `string`, **required** | `string`, **required** | No change |
+| `coordinates` | `array` | `array` | No change |
+| `geometries` | `array` (GeometryCollection only) | `array` (GeometryCollection only) | No change |
+| `bbox` | `array[4]` optional | `array[4]` optional | No change |
+| CRS | EPSG:4326 (WGS-84), `[lon, lat, alt?]` | EPSG:4326 (WGS-84), `[lon, lat, alt?]` | No change |
+| `additionalProperties` | not specified | permitted | No change |
+
+**Key change:** No structural changes. Circles explicitly documented as unsupported — use `SpatialConstraint` with `S_DWITHIN` + Point instead.
+
+---
+
+### Level 6.5: `location.address` — Address object
+
+| Property | Old spec | New spec (v2.0) | Change |
+|---|---|---|---|
+| `streetAddress` | `string`, optional | `string`, optional | No change |
+| `extendedAddress` | `string`, optional | `string`, optional | No change |
+| `addressLocality` | `string`, optional | `string`, optional | No change |
+| `addressRegion` | `string`, optional | `string`, optional | No change |
+| `postalCode` | `string`, optional | `string`, optional | No change |
+| `addressCountry` | `string`, optional | `string`, optional | No change |
+| `additionalProperties` | not specified | `false` | **Now strict** |
+
+**Key change:** `additionalProperties: false` now enforced. All fields remain optional, aligned with `schema.org/PostalAddress`.
+
+---
+
+### Level 6.6: `context.lineage[]` — LineageEntry object *(new in v2.0)*
+
+> Not present in old spec. New field on context — documents causal attribution when a transaction originates from an upstream interaction.
+
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `action` | `BecknEndpoint` ref | ✅ required | Upstream endpoint that triggered this transaction |
+| `transactionId` | `string (UUID)` | ✅ required | Upstream transaction's context `transactionId` |
+| `messageId` | `string (UUID)` | ✅ required | Upstream message's `messageId` |
+| `digest` | `string`, pattern `BLAKE-512=<base64>` | ✅ required | BLAKE2b-512 hash of upstream message body |
+| `additionalProperties` | `false` | — | Strict |
+
+> **Rules:** MUST NOT be included within steps of the same transaction. MUST NOT be propagated by downstream responses. Only at transaction boundaries.
+
+---
+
+## Level 7: `/beckn/on_discover` — Endpoint-level comparison
+
+| Aspect | Old spec | New spec | Change |
+|---|---|---|---|
+| HTTP method | `POST` | `POST` | No change |
+| `operationId` | `onDiscoverItems` | not set | **Removed** |
+| `tags` | `[Discovery]` | not set | **Removed** |
+| `summary` | `"On Discover response with catalog data"` | `"Beckn OnDiscover on an HTTP POST endpoint"` | **Changed — generic in new spec** |
+| `Authorization` header | ❌ not required | ✅ **required** (`Beckn Signature`) | **New requirement** |
+| Request schema ref | local `#/components/schemas/DiscoverResponse` | external `schema.beckn.io/OnDiscoverAction/v2.0` | **External ref** |
+| Inline examples | ✅ `electronic_items_catalog`, `grocery_items_catalog` | ❌ none | **Removed** |
+| `200` response | `AckResponse` (external ref) | `Ack` with `CounterSignature` | **New — response now includes counter-signature** |
+| `400` response | `Ack400` (local) | `NackBadRequest` | **Renamed** |
+| `401` response | ❌ not present | `NackUnauthorized` | **New response code** |
+| `409` response | ❌ not present | `AckNoCallback` | **New response code** |
+| `500` response | `Ack500` (local) | `ServerError` | **Renamed** |
+
+### Key takeaways
+1. **`Authorization` header now mandatory** — Beckn Signature required on every request
+2. **Two new response codes** — `401 NackUnauthorized` and `409 AckNoCallback`
+3. **`200` response now includes `CounterSignature`** — cryptographic proof receiver processed the request
+4. **Removed** — `operationId`, `tags`, inline examples
+5. Request schema moved fully external
+
+---
+
+## Level 8: `inReplyTo` — Verification
+
+> Checked `OnDiscoverAction/v2.0` for top-level `inReplyTo` field.
+
+**Result: Not present in `OnDiscoverAction/v2.0` body.**
+
+`inReplyTo` is defined in the new spec's transport layer (`schema/core.yaml`) and is available as a schema for use in callbacks — but it is **not part of the `on_discover` request body**. It exists as a standalone schema for future use or optional binding at the network/implementation level.
+
+---
+
+## Level 9: Response schemas comparison
+
+### Old spec response schemas
+
+| Response | Schema | Fields |
+|---|---|---|
+| `200` | `AckResponse` (external) | `transaction_id` (required), `timestamp` (required), `ack_status: ACK\|NACK` (required), `error` (required if NACK) |
+| `400` | `AckResponse` (same schema, NACK with error) | Same as above |
+| `500` | `AckResponse` (same schema, NACK with error) | Same as above |
+
+### New spec response schemas
+
+| Response | Schema | Fields |
+|---|---|---|
+| `200` | `Ack` | `status: ACK\|NACK` (required), `signature: CounterSignature` (required) |
+| `400` | `NackBadRequest` | `status: NACK` (const, required), `error: Error` (required), `signature: CounterSignature` (required) |
+| `401` | `NackUnauthorized` | `status: NACK` (const, required), `error: Error` (required), `signature: CounterSignature` (required) |
+| `409` | `AckNoCallback` | `status: ACK\|NACK` (required), `signature: CounterSignature` (required), `error: Error` (optional) |
+| `500` | `ServerError` | empty object |
+
+### Field-level comparison
+
+| Aspect | Old spec (`AckResponse`) | New spec (`Ack`) | Change |
+|---|---|---|---|
+| Status field name | `ack_status` | `status` | **Renamed** |
+| Status enum | `ACK`, `NACK` | `ACK`, `NACK` | No change |
+| `transaction_id` | `string`, **required** | ❌ removed | **Removed** |
+| `timestamp` | `string (date-time)`, **required** | ❌ removed | **Removed** |
+| `error` | `object` (required if NACK) | `error.errorCode` + `error.errorMessage` | Restructured |
+| `signature` | ❌ not present | `CounterSignature`, **required** | **New — cryptographic proof** |
+
+### CounterSignature (new spec only)
+
+Transmitted in the `Ack` response body. Proves the receiver authenticated and processed the inbound request.
+
+| Field | Value |
+|---|---|
+| Wire format | Same as `Signature` (HTTP Signature scheme) |
+| Signer | Response **receiver** (BPP/BAP) |
+| `digest` | BLAKE2b-512 of the **Ack response** body |
+| `(request-digest)` | BLAKE2b-512 of the **inbound request** body — MUST be present |
+| `(message-id)` | messageId from inbound request context — MUST be present |
+| `headers` | `"(created) (expires) digest (request-digest) (message-id)"` |
+
+### Key takeaways
+1. `ack_status` → `status` rename
+2. `transaction_id` and `timestamp` **removed** from response — these are now only on the request context
+3. `signature` (CounterSignature) now **required** on every response — bilateral non-repudiation
+4. Error codes split into `errorCode` + `errorMessage` instead of single `error` object
+5. `ServerError` (500) is now an **empty object** — no fields at all
+
+---
+
+## `/beckn/on_discover` — Complete comparison done ✅
+
+---
+
+# `beckn/discover` Endpoint Comparison
+
+> _To be filled — starting next_
